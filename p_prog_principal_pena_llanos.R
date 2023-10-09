@@ -99,9 +99,10 @@ summ <- data.frame(
   "Mean" = mean, "Median" = median, "Mode" =  mode,
   "Variance" = var, "Std_deviation" = std, "Coeff_variation" =  cv,
   "Value_at_Risk_95" = VaR_95, "Tale_Value_at_Risk_95" = TVaR_95,
-  "Skewness" =  skew,"Curtosis" =  kurt
+  "Skewness" =  skew,"Curtosis" =  kurt, row.names = "Valor"
   )
-summ
+t(summ)
+
 
 
 ##      Gráficos descriptivos de x:
