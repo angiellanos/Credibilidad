@@ -25,6 +25,7 @@ library(readr)
 library(janitor)
 library(pastecs)
 library(modeest)
+library(actuar)
 
 # Datos originales
 data <- read_delim("d_datos_modelo_pena_llanos.txt", delim = "\t")
@@ -141,6 +142,7 @@ f  = fdd_fdD(x,m,"Densidad Empírica de x, fn(x)","Distribución Empírica de x,
 x1 <- x[45]
 x2 <- x[95]
 
+z <- seq(5,2300,5)
 media_Fx <- momento(sapply(z, Fn),length(sapply(z, Fn)),1)
 var_x1   <- (Fn(x1) - media_Fx)^2
 var_x1
@@ -184,6 +186,245 @@ graf_kernel(x,ancho_banda)
 
 
 ##          MODELO TEÓRICO PARA X
+
+
+
+# El análisis gráfico de la variable aleatoria (VA) presenta un sesgo positivo, una asimetría derecha y una curtosis alta.
+# Esto implica que la VA tiene una mayor probabilidad de tomar valores bajos que altos, y que su distribución tiene una cola
+# larga y pesada hacia la derecha. Estas características descartan que la VA siga una distribución uniforme, normal o t-Student,
+# ya que estas son simétricas y tienen colas más cortas y ligeras. Tampoco se puede asumir que la VA siga una distribución beta,
+# ya que esta está definida en el intervalo (0,1) y la VA tiene un rango mayor. Finalmente, la VA tampoco se ajusta a una
+# distribución de Cauchy, ya que esta tiene colas largas y pesadas en ambos extremos y un sesgo nulo.
+
+
+
+# rchisq
+# rexp
+# rf
+# rgamma
+# rlogis
+# rweibull
+# Erlang, Pareto, exponencial negativa
+
+#####################################
+# Densidad Empírica Vs. Exponencial
+#####################################
+
+hist(x, breaks = 40,prob=T,main="Pdf Empírica vs. Pdf Exponencial",ylab="")
+z <- seq(0,4000,0.1)
+theta <- mean
+lines(z, dexp(z, 1/theta), col="red")
+#
+z <- seq(0,4000,0.1)
+theta <- mean +30
+lines(z, dexp(z, 1/theta), col="blue")
+#
+z <- seq(0,4000,0.1)
+theta <- mean -30
+lines(z, dexp(z, 1/theta), col="green")
+#
+z <- seq(0,4000,0.1)
+theta <- mean -50
+lines(z, dexp(z, 1/theta), col="darkolivegreen")
+#
+
+legend("topright", c("X empírica","Pdf Expon Lambda = xbarra", "Pdf Expon Lambda = xbarra+30", "Pdf Expon Lambda = xbarra-30", "Pdf Expon Lambda = xbarra-50"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+
+# La función de densidad Exponencial describe apoximadamente bien la muestra aunque no capture los valores últimos de la densidad empírica,
+# ni la moda que queda por encima de la función, es decir, al disminuir el valor del parámetro ajusta mejor algunos valores a la izquierda,
+# pero pierde ajuste en la cola derecha.
+rm(z,theta)
+
+
+# ___________________________________________________________________________________________
+
+
+# Densidad Empírica Vs. Chi-cuadrado
+
+hist(x, breaks = 40,prob=T,main="Pdf Empírica vs. Pdf Chi-cuadrado",ylab="",ylim = c(0, 0.06))
+z <- seq(0,4000,0.1)
+gl <- (m-1)
+lines(z, dchisq(z, gl), col="red")
+#
+z0 <- seq(0,4000,0.1)
+gl0 <- ((m-50)-1)
+lines(z0, dchisq(z0, gl0), col="blue")
+#
+z1 <- seq(0,4000,0.1)
+gl1 <- ((m-130)-1)
+lines(z1, dchisq(z1, gl1), col="green")
+legend("topright", c("X empírica","Pdf chi gl=157", "Pdf chi gl=107", "Pdf chi gl=27"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+# La función de densidad Chi-cuadrado no describe bien la muestra porque no captura de ninguna manera la densidad empírica al tener una forma bastante leptocúrtica,
+# es decir, de colas livianas y delgada, sin captar comportamiento real de la VA.
+rm(z,z0,z1,gl,gl0,gl1)
+
+
+# ___________________________________________________________________________________________
+
+
+# Densidad Empírica Vs. F de Fisher
+
+hist(x, breaks = 40,prob=T,main="Pdf Empírica vs. Pdf F de Fisher",ylab="")
+z <- seq(0,4000,0.1)
+gl1 <- 1
+gl2 <- 0.9
+lines(z, df(z, gl1,gl2), col="red")
+#
+z0 <- seq(0,4000,0.1)
+gl10 <- 100
+gl20 <- 0.4
+lines(z0, df(z0, gl10,gl20), col="blue")
+#
+z1 <- seq(0,4000,0.1)
+gl11 <- 500
+gl21 <- 0.9
+lines(z1, df(z1, gl11,gl21), col="green")
+legend("topright", c("X empírica","Pdf F gl1=1 gl2=0.9", "Pdf F gl1=100 gl2=0.4", "Pdf F gl1=500 gl2=0.9"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+# La función de densidad F-Fisher no describe bien la muestra porque no captura la densidad,
+# pues queda muy por debajo de la distribución empírica.
+rm(z,z0,z1,gl1,gl2,gl10,gl20,gl11,gl21)
+
+
+# ___________________________________________________________________________________________
+
+
+# Densidad Empírica Vs. Gamma
+
+hist(x, breaks = 40,prob=T,main="Pdf Empírica vs. Pdf Gamma",ylab="")
+z <- seq(0,4000,0.1)
+a <- 2
+b <- 1/25
+lines(z, dgamma(z, a,b), col="red")
+#
+z0 <- seq(0,4000,0.1)
+a0 <- 2.5
+b0 <- 1/25
+lines(z0, dgamma(z0, a0,b0), col="blue")
+#
+z1 <- seq(0,4000,0.1)
+a1 <- 2.5
+b1 <- 1/20
+lines(z1, dgamma(z1, a1,b1), col="green")
+legend("topright", c("X empírica","Pdf Gamma a=2 b=1/25", "Pdf Gamma a=2.5 b=1/25", "Pdf Gamma a=2.5 b=1/20"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+# La función de densidad Gamma no describe bien la muestra porque no captura la densidad empírica de manera correcta en todo su intervalo.
+rm(z,z0,z1,a,b,a0,b0,a1,b1)
+
+
+# ___________________________________________________________________________________________
+
+
+# Densidad Empírica Vs. logística
+
+hist(x, breaks = 40,prob=T,main="Pdf Empírica vs. Pdf logística",ylab="")
+z <- seq(0,4000,0.1)
+lines(z, dlogis(z), col="red")
+#
+# La función de densidad Logística no describe bien la muestra porque no captura de ninguna manera la densidad empírica.
+# La muestra no se ajusta bien a la función de densidad logística, ya que la densidad empírica está siempre por encima
+# de la densidad logística.
+rm(z)
+
+
+# ___________________________________________________________________________________________
+
+
+# Densidad Empírica Vs. Weibull
+
+hist(x, breaks = 40,prob=T,main="Pdf Empírica vs. Pdf Weibull",ylab="")
+z <- seq(0,4000,0.1)
+a <- 2.2
+b <- 50
+lines(z, dweibull(z, a,b), col="red")
+
+#
+z0 <- seq(0,4000,0.1)
+a0 <- 1.9
+b0 <- 60
+lines(z0, dweibull(z0, a0,b0), col="blue")
+#
+z1 <- seq(0,4000,0.1)
+a1 <- 2.7
+b1 <- 70
+lines(z1, dweibull(z1, a1,b1), col="green")
+legend("topright", c("X empírica","Pdf Weibull a=2.2 b=50", "Pdf Weibull a=1.9 b=60", "Pdf Weibull a=2.7 b=70"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+# La función de densidad Weibull no describe la muestra porque no captura la densidad empírica.
+rm(z,z0,z1,a,b,a0,b0,a1,b1)
+
+
+# ___________________________________________________________________________________________
+
+
+# Densidad Empírica Vs. Log-Normal
+
+hist(x, breaks = 50,prob=T,main="Pdf Empírica vs. Pdf Log-Normal",ylab="")
+z <- seq(0,4000,0.1)
+a <- 5.3
+b <- 1.7
+lines(z, dlnorm(z, a, b), col="red")
+#
+z0 <- seq(0,4000,0.1)
+a0 <- 3
+b0 <- 3
+lines(z0, dlnorm(z0, a0,b0), col="blue")
+#
+z1 <- seq(0,4000,0.1)
+a1 <- 6
+b1 <- 3
+lines(z1, dlnorm(z1, a1,b1), col="green")
+legend("topright", c("X empírica","Pdf Log-Normal a=5.3 b=1.7", "Pdf Log-Normal a=3 b=3", "Pdf Log-Normal a=6 b=3"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+# La función de densidad Log-Normal no describe la muestra porque no captura la densidad empírica, debido que, hay bastante información que
+# se espaca por encima de la función de densidad, sobre todo en intervalo de masa de probabilidad alrededor de cero.
+rm(z,z0,z1,a,b,a0,b0,a1,b1)
+
+
+########################################
+# Densidad Empírica Vs. inverse weibull
+########################################
+
+hist(x, breaks = 50,prob=T,main="Pdf Empírica vs. Pdf dinvweibull",ylab="")
+z <- seq(0,4000,0.1)
+a <- 1.5
+b <- 0.06
+lines(z, dinvweibull(z, a, b), col="red")
+#
+z0 <- seq(0,4000,0.1)
+a0 <- 1.5
+b0 <- 0.04
+lines(z0, dinvweibull(z0, a0,b0), col="blue")
+#
+z1 <- seq(0,4000,0.1)
+a1 <- 1.3
+b1 <- 0.03
+lines(z1, dinvweibull(z1, a1,b1), col="green")
+legend("topright", c("X empírica","Pdf dinvweibull a=1.5 b=0.06", "Pdf dinvweibull a=1.5 b=0.04", "Pdf dinvweibull a=1.3 b=0.03"), cex=0.9, col=c("gray","red","blue", "green"), bty="n", lty=c(1,1,1,1))
+#
+# La función de densidad dinvweibull describe particularmente la muestra porque captura de cierta manera la densidad empírica.
+rm(z,z0,z1,a,b,a0,b0,a1,b1)
+
+
+# Debido a que distribución inverse weibull es la función que mejor aproxima la variable "X" empírica, se elige ésta como f*(x),
+# como la distribución teórica.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
