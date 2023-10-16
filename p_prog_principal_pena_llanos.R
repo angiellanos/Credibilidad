@@ -26,6 +26,7 @@ library(janitor)
 library(pastecs)
 library(modeest)
 library(actuar)
+library(nleqslv)
 
 # Datos originales
 data <- read_delim("d_datos_modelo_pena_llanos.txt", delim = "\t")
@@ -411,6 +412,205 @@ rm(z,z0,z1,a,b,a0,b0,a1,b1)
 # Debido a que distribución inverse weibull es la función que mejor aproxima la variable "X" empírica, se elige ésta como f*(x),
 # como la distribución teórica.
 
+
+
+#++++++++++++++++++++++++++++++++++++++++++________________________________________________________________________________________
+
+
+
+###      Ahora, estimando los parámetros:
+
+# Método de los momentos:
+
+# Primer momento: Mu(x)= \alpha \Gamma(1- (1 / \beta) )
+# Segundo momento: Mu(x)= \alpha^2 \Gamma(1- (2 / \beta) )
+sol_nl <- function(x) {
+  y <- numeric(2)
+  y[1] <- x[1] * gamma(abs(1- 1/ x[2])) - mean
+  y[2] <- (x[1])^2 * gamma(abs(1- 2/x[2])) - (x[1])^2 * (gamma(abs(1- 1/ x[2])))^2 - var
+  y
+}
+x0 <- c(1.5,0.04)
+fb <- sol_nl(x0)
+x0
+fb
+xp <- nleqslv(x0, sol_nl, control=list(btol=.01))
+
+# Observando la gráfica de la distribución de los parámetros resultantes, se tiene:
+
+hist(x, breaks = 50,prob=T,main="Pdf Empírica vs. Pdf dinvweibull",ylab="")
+z <- seq(0,4000,0.1)
+am <- abs(xp$x[1])
+bm <- abs(xp$x[2])
+am
+bm
+lines(z, dinvweibull(z, am, bm), col="red")
+
+# Comparando medidas de tendencia central
+c(mean, am * gamma(abs(1- 1/bm)))  # xbarra=mu.est.momentos
+c(var, (am^2 * gamma(1+ 2/bm)) - (am^2 *(gamma(1+ 1/bm))^2))  # S^2= sigma^2.est.momentos
+
+
+# ESTIMACION MAXVER
+## FUNCION DE "menos" LOG-VEROSIMILITUD DE UNA POBLACION INVERSA WEIBULL
+#
+l=function(param){
+  alpha=param[1]
+  betha=param[2]
+  -(log(betha^m*(alpha^(m*betha)))+sum(log(x^(-betha-1)*exp(-(x/alpha)^(-betha))))) # negativo de la función, para usar optim x maximizar
+}
+
+## OPTIM() minimiza una función
+
+optim(c(1.3,0.03),l)           # debo indicar los puntos de arranque x la función a optimizar
+
+# Observando la gráfica de la distribución de los parámetros resultantes, se tiene:
+
+av <- optim(c(1.1,0.01),l)$par[1]
+bv <- optim(c(1.5,0.04),l)$par[2]
+lines(z, dinvweibull(z, av, bv), col="blue")
+
+# Medidas de tendencia central
+c(mean_y, av * gamma(1- 1/bv))  # xbarra=mu.est.MAXVER
+c(var_y, av^2 * gamma(1+ 2/bv) - av^2 *(gamma(1+ 1/bv))^2)  # S^2= sigma^2.est.MAXVER
+
+
+# Presenta las métricas anteriores de forma organizada
+mu <- data.frame(
+  "ybarra" = c(mean_y), "mu.est.momentos" = c(am * gamma(1- 1/bm)), "mu.est.MAXVER" =  c(av * gamma(1- 1/bv)),
+  row.names = c('values:')
+)
+vari <- data.frame(
+  "S^2" = c(var_y), "sigma^2.est.momentos" = c((am^2 * gamma(1+ 2/bm)) - (am^2 *(gamma(1+ 1/bm))^2)),
+  "sigma^2.est.MAXVER" =  c(av^2 * gamma(1+ 2/bv) - av^2 *(gamma(1+ 1/bv))^2),
+  row.names = c('values:')
+)
+mu;vari
+
+#SELECCIÓN DEFINITIVA DE PARÁMETROS:
+
+a <- am
+b <- bm
+
+# Para la distribución teórica de Y veamos las siguientes estadísticas (fórmulas):
+Mean_T    <- a * gamma(1- 1/ b)
+Mode_T    <- mlv(dinvweibull(z, a, b), method = "meanshift")[1]
+Median_T  <- (0.5/exp(-a))^(-1/b)
+Var_T     <- a^2 * gamma(1+ 2/b) - a^2 *(gamma(1+ 1/b))^2
+Sd_T      <- sqrt(Var_T)
+Cv_T      <- Sd_T/Mean_T
+VaRx_95_T <- Mean_T - Sd_T *qnorm(.95,0,1)
+
+
+## Evaluando las estadísticas anteriores en las estimaciones de los parámetros:
+## Es decir, para volver a estimar los parámetros.
+sol_nl_T <- function(x) {
+  y <- numeric(2)
+  y[1] <- x[1] * gamma(1- 1/ x[2]) - Mean_T
+  y[2] <- (x[1])^2 * gamma(1- 2/x[2]) - (x[1])^2 * (gamma(1- 1/ x[2]))^2 - Var_T
+  y
+}
+xT <- c(100,0.9)
+fT <- sol_nl(x0)
+xT
+fT
+x <- nleqslv(xT, sol_nl_T, control=list(btol=.01))
+
+# Observando la gráfica de la distribución de los parámetros resultantes, se tiene:
+
+hist(y, breaks = 50,prob=T,main="Pdf Empírica vs. Pdf dinvweibull",ylab="")
+z <- seq(0,4000,0.1)
+an <- abs(x$x[1])
+bn <- abs(x$x[2])
+an
+bn
+lines(z, dinvweibull(z, an, bn), col="red")
+
+#Calculando de nuevo las estadísticas:
+Mean_T    <- an * gamma(1- 1/ bn)
+Mode_T    <- mlv(dinvweibull(z, an, bn), method = "meanshift")[1]
+Median_T  <- (0.5/exp(-an))^(-1/bn)
+Var_T     <- an^2 * gamma(1+ 2/bn) - an^2 *(gamma(1+ 1/bn))^2
+Sd_T      <- sqrt(Var_T)
+Cv_T      <- Sd_T/Mean_T
+VaRx_95_T <- -Mean_T + Sd_T *qnorm(.95,0,1)
+
+
+# Presenta cuadro comparativo entre estas siete estadísticas y los valores obtenidos en la TAREA 2.
+estadis <- data.frame(
+  "mean" = c(Mean_T, mean_y), "median" = c(Median_T, median_y), "mode" =  c(Mode_T,mode_y),
+  "variance" = c(Var_T, var_y), "std_deviation" = c(Sd_T, std_y), "coeff_variation" =  c(Cv_T, cv_y),
+  "Value_at_Risk_95" = c(VaRx_95_T, VaR_y_95),
+  row.names = c('Teóricos','Empíricos')
+)
+estadis
+
+
+# Comparando gráficamente el modelo empírico y el modelo teórico de Y:
+# Fn(y) vs F*(y)
+
+fdd_fdD(y,n,"Densidad","Comparación Func. de Distribución") ;lines(z, pinvweibull(z, a, b),col = "red",main="Comparación Func. de Distribución")
+legend("bottomright", c("F.d.D. Empírica","F.d.D. Teórica"), cex=0.9, col=c("black","red"), bty="n", lty=c(1,1))
+
+# Histograma(y) vs f*(y)
+hist(y, breaks = 50,prob=T,main="Comparación Hist y f.d.d. Teórica",ylab="")
+lines(z, dinvweibull(z, a, b), col="red")
+legend("topright", c("Histograma","F.d.d. Teórica"), cex=0.9, col=c("gray","red"), bty="n", lty=c(1,1))
+
+# Dn(y)
+D <- function(y){
+  Fn(y) - pinvweibull(y, a, b)
+}
+D(7.0)
+D(12.2)
+D(18.0)
+x11();plot( z, sapply(z, D), type = "l", xlab = "x", ylab = "", main = "D(x) = Fn(x) - F*(x)")
+max(sapply(z, D))
+
+# P-P plot
+x11();plot( sapply(y, Fn), pinvweibull(y, a, b), main = "P-P plot", xlab = "Fn(x)", ylab = "F*(x)")
+
+
+# Q-Q plot
+q <- seq(0.01,0.99,0.005)
+q
+x11();plot( quantile(y,q), qinvweibull(q, a, b), main = "Q-Q plot", xlab = "^pi_q", ylab = "pi*_q")
+#
+qqnorm(y)
+qqline(z, col = 2)
+#
+qqplot(y, rinvweibull(n, a, b))
+#
+
+
+#Ahora, Usando pruebas de hipótesis para validar que el modelo teórico si representa los datos de la variable Y
+
+### KS TEST
+#
+ks.test(y, "pinvweibull", a, b)  # se rechaza H0, es decir que nuestro conjunto de datos no se distribuye Weibull
+#
+
+### Chi-squared test
+#
+s <- seq(0,799)
+chisq.test(f,dinvweibull(s, a, b), correct=FALSE)  #Muchos grados de libertad, por valores repetidos
+# y p.value grande, por ende, se acepta la hipótesis nula y se rechaza la alternativa, es decir,
+# Los datos sí se distribuyen inversa de weibull.
+#
+
+### Shapiro Wilk (test de normalidad)
+#
+shapiro.test(y) # se rechaza H0, es decir que nuestro conjunto de datos no se distribuye Normal, como era de esperarse
+#
+
+### Anderson Darling test (test de normalidad)
+#
+require(nortest)
+ad.test(y) # se rechaza H0, es decir que nuestro conjunto de datos no se distribuye Normal, como era de esperarse
+#
+
+# Debido a que el test KS rechaza la hipótesis nula, significa que puede existir un mejor
+# modelo que aproxime o replique el comportamiento de los datos.
 
 
 
